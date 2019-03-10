@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head>
+    <title>Socket.IO Chat</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/css/bootstrap.min.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+
+    <style>
+
+        .container-fluid{
+            background: #808080;
+        }
+
+        #messageArea {
+            height: 90vh;
+            display: block;
+        }
+
+        #username{
+            height: 10vh;
+            display: block;
+        }
+
+        .well{
+            margin: 0px;
+            border-radius: 0;
+            background-color: #e0e0e0;
+        }
+
+        .user-col{
+            height: 79vh;
+            border: 3px solid black;
+            border-radius: 5px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .chat{
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            max-height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 5px;
+        }
+
+        .wrapper{
+            position: relative;
+            border: 3px solid black;
+            height: 79vh;
+            position: relative;
+            border-radius: 5px;
+            background-color: #e0e0e0;
+        }
+
+        body {
+            font: 15px Helvetica, Arial;
+            color: black;
+        }
+
+        form {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            padding-bottom: 20px;
+        }
+        form input {
+            background-color: #e0e0e0;
+            border: 3px solid black;
+            border-radius: 5px;
+            padding: 15px;
+            width: 85%; margin-right: .5%;
+        }
+        form button {
+            width: 13%;
+            padding: 15px;
+            background: rgb(130, 224, 255);
+            border: 1px solid black;
+        }
+
+        .list-group-item {
+            border: none;
+            background: none;
+        }
+
+        /* Desktops */
+        @media only screen and (min-width : 992px) {
+            .wrapper, .user-col {
+                height: 79vh;
+            }
+        }
+
+        /* Small Devices, Tablets */
+        @media only screen and (max-width : 768px) {
+            .wrapper, .user-col {
+                height: 75vh;
+            }
+
+        }
+
+
+
+    </style>
+
+</head>
+
+<body>
+    <div class="container-fluid" >
+
+        <div id="username" class="row">
+            <div class="col-md-8 col-xs-8" id="heading-left">
+                <h2 id="welcome"> </h2>
+            </div>
+            <div class="col-md-4 col-xs-4" id="heading-right">
+                <h2 id="online">Online Users</h2>
+            </div>
+        </div>
+
+        <div id="messageArea" class="row">
+            <div class="col-md-8 col-xs-8">
+                <div class="wrapper">
+                    <div class="chat" id="chat">
+                    </div>
+                </div>
+                <form id = "messageForm">
+                    <input id ="m" autocomplete="off" /><button><strong>Send</strong></button>
+                </form>
+            </div>
+
+            <div class="col-md-4 col-xs-4">
+                <div class="well user-col">
+                    <ul class="list-group" id="users"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(function () {
+            var socket = io();
+            var username = "";
+            var $messageForm = $('#messageForm');
+            var $message = $('#m');
+            var $chat = $('#chat');
+            var $users = $('#users');
+            var $welcome = $('#welcome');
+
+            $messageForm.submit(function(e){
+                e.preventDefault(); // prevents page reloading
+                socket.emit('send message', $message.val());
+                $message.val('');
+                return false;
+            });
+
+            socket.on('check cookies', function () {
+                if(document.cookie) {
+                    var cookieSplit = document.cookie.split("=");
+                    username = cookieSplit[1];
+                    socket.emit('send cookies', document.cookie);
+                }
+                else {
+                    document.cookie = "user="+username;
+                }
+            });
+
+            socket.on('new cookie', function (data) {
+                document.cookie = "user="+data;
+            });
+
+            socket.on('connecting', function(data){
+                for(let i = 0; i < data.length; i++){
+                    $chat.append('<div class="well">' + data[i].time + ' ' + ' <span style="color: #' + data[i].color + '">  '+ data[i].user + ':</span> ' + data[i].msg + '</div>');
+                }
+                $chat.scrollTop($chat[0].scrollHeight);
+            });
+
+            socket.on('new message', function (data) {
+                console.log(data.user);
+                console.log(username);
+                if(username === data.user){
+                    $chat.append('<div class="well"><strong>' + data.time + ' <span style="color: #' + data.color + '">  '+ data.user +':</span></strong>'+ ' ' + data.msg +'</div>');
+                }
+                else {
+                    $chat.append('<div class="well">' + data.time + ' <span style="color: #' + data.color + '">  '+ data.user +': </span>'+ ' ' + data.msg +' </div>');
+                }
+                $chat.scrollTop($chat[0].scrollHeight);
+            });
+
+            socket.on('username', function (data) {
+                username = data;
+                var html = '';
+                    html = 'Welcome ' + data + '!';
+                $welcome.html(html);
+            });
+
+            socket.on('not unique', function (data) {
+                alert("Username " + data + " is not unique. Try again.");
+            });
+
+            socket.on('bad name', function (data) {
+                alert("Invalid entry: " + data + " Use format /nick <new name>.");
+            });
+
+            socket.on('bad color', function (data) {
+                alert("Invalid color: " + data + ". Use format /nickcolor RRGGBB");
+            });
+
+            socket.on('get users', function (data) {
+                var html = '';
+                for(let i = 0; i < data.length; i++){
+                    html += '<li class="list-group-item">' +data[i]+'</li>';
+                }
+                $users.html(html);
+            });
+        });
+    </script>
+</body>
+</html>
